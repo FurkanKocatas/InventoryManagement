@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Envanter Yönetim Sistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <header class="bg-blue-600 text-white py-4 flex justify-between items-center px-6">
+        <h1 class="text-2xl font-bold">Envanter Yönetim Sistemi</h1>
+        <button id="exportButton" class="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600">Excel Çıktısı Al</button>
+    </header>
+
+    <div class="container mx-auto mt-6">
+        <div class="flex space-x-4">
+            <!-- Sidebar -->
+            <div class="w-1/4 bg-white shadow-md rounded-lg p-4">
+                <h2 class="text-lg font-semibold mb-4">Odalar</h2>
+                <ul id="roomList" class="mb-6 space-y-2">
+                    <!-- Dinamik Odalar -->
+                </ul>
+            </div>
+
+            <!-- Main Content -->
+            <div class="w-3/4 bg-white shadow-md rounded-lg p-4">
+                <div id="tabs" class="mb-4 flex space-x-4">
+                    <button class="tab-button active bg-blue-500 text-white py-2 px-4 rounded" data-tab="inventory">Odalar ve Envanter</button>
+                    <button class="tab-button bg-blue-500 text-white py-2 px-4 rounded" data-tab="assignments">Zimmetler</button>
+                    <button class="tab-button bg-blue-500 text-white py-2 px-4 rounded" data-tab="allInventory">Tüm Envanter</button>
+                </div>
+
+                <!-- Inventory Section -->
+                <div id="inventorySection" class="tab-content">
+                    <h2 class="text-xl font-semibold mb-4">Odalar ve Envanter</h2>
+                    <div id="roomInventory" class="space-y-6">
+                        <!-- Dinamik Oda İçeriği -->
+                    </div>
+                </div>
+
+                <!-- Assignments Section -->
+                <div id="assignmentsSection" class="tab-content hidden">
+                    <h2 class="text-xl font-semibold mb-4">Zimmetler</h2>
+                    <div id="assignmentList" class="space-y-6">
+                        <!-- Dinamik Zimmet İçeriği -->
+                    </div>
+                    <button id="addAssignmentButton" class="bg-green-500 text-white py-2 px-4 rounded">Yeni Zimmet Ekle</button>
+                </div>
+
+                <!-- All Inventory Section -->
+                <div id="allInventorySection" class="tab-content hidden">
+                    <h2 class="text-xl font-semibold mb-4">Tüm Envanter</h2>
+                    <div id="allInventoryList" class="space-y-6">
+                        <!-- Dinamik Tüm Envanter İçeriği -->
+                    </div>
+                    <button id="addAllInventoryButton" class="bg-green-500 text-white py-2 px-4 rounded">Yeni Envanter Ekle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-1/3">
+            <h3 id="modalTitle" class="text-xl font-semibold mb-4"></h3>
+            <form id="modalForm">
+                <div id="modalContent" class="space-y-4">
+                    <!-- Dinamik Inputlar -->
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button type="button" id="cancelButton" class="bg-gray-500 text-white py-2 px-4 rounded mr-2">İptal</button>
+                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const rooms = ["GreenBox", "Render ve Ses", "Scrum", "Egitim", "Proje", "Etkinlik", "Toplanti", "Personel"];
+        const categories = ["MSI Notebook", "Macbook Air", "Macbook Pro", "Mouse", "Klavye"];
+        const inventoryData = {
+            "GreenBox": [
+                { category: "MSI Notebook", serial: "1234A567B" }
+            ],
+            "Render ve Ses": [
+                { category: "Macbook Air", serial: "4217E689F" }
+            ],
+            "Scrum": [],
+            "Egitim": [],
+            "Proje": [],
+            "Etkinlik": [],
+            "Toplanti": [],
+            "Personel": []
+        };
+        const assignmentsData = [];
+        const allInventoryData = [];
+
+        const roomList = document.getElementById("roomList");
+        const roomInventory = document.getElementById("roomInventory");
+        const modal = document.getElementById("modal");
+        const modalTitle = document.getElementById("modalTitle");
+        const modalContent = document.getElementById("modalContent");
+        const modalForm = document.getElementById("modalForm");
+        const cancelButton = document.getElementById("cancelButton");
+        const exportButton = document.getElementById("exportButton");
+        const assignmentList = document.getElementById("assignmentList");
+        const addAssignmentButton = document.getElementById("addAssignmentButton");
+        const allInventoryList = document.getElementById("allInventoryList");
+        const addAllInventoryButton = document.getElementById("addAllInventoryButton");
+
+        function renderRoomList() {
+            roomList.innerHTML = "";
+            rooms.forEach(room => {
+                const listItem = document.createElement("li");
+                listItem.textContent = room;
+                listItem.classList.add("py-2", "px-4", "bg-gray-100", "rounded", "hover:bg-gray-200", "cursor-pointer");
+                listItem.addEventListener("click", () => renderRoomInventory(room));
+                roomList.appendChild(listItem);
+            });
+        }
+
+        function renderRoomInventory(room) {
+            roomInventory.innerHTML = "";
+            const roomTitle = document.createElement("h3");
+            roomTitle.textContent = room;
+            roomTitle.classList.add("text-lg", "font-semibold");
+            roomInventory.appendChild(roomTitle);
+
+            const table = document.createElement("table");
+            table.classList.add("w-full", "table-auto", "border-collapse", "border", "border-gray-300", "mt-4");
+            table.innerHTML = `
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2">Kategori</th>
+                        <th class="border border-gray-300 px-4 py-2">Seri Numarası</th>
+                        <th class="border border-gray-300 px-4 py-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody id="roomTableBody">
+                    ${inventoryData[room]
+                        .map(
+                            (item, index) => `
+                                <tr>
+                                    <td class="border border-gray-300 px-4 py-2">${item.category}</td>
+                                    <td class="border border-gray-300 px-4 py-2">${item.serial}</td>
+                                    <td class="border border-gray-300 px-4 py-2">
+                                        <button class="bg-red-500 text-white px-2 py-1 rounded" onclick="removeItem('${room}', ${index})">Sil</button>
+                                    </td>
+                                </tr>`
+                        )
+                        .join("")}
+                </tbody>
+            `;
+            roomInventory.appendChild(table);
+
+            const addButton = document.createElement("button");
+            addButton.textContent = "Yeni Envanter Ekle";
+            addButton.classList.add("bg-green-500", "text-white", "py-2", "px-4", "rounded", "mt-4");
+            addButton.addEventListener("click", () => showAddItemModal(room));
+            roomInventory.appendChild(addButton);
+        }
+
+        function showAddItemModal(room) {
+            modalTitle.textContent = `${room} Odasına Yeni Envanter Ekle`;
+            modalContent.innerHTML = `
+                <div>
+                    <label class="block">Kategori:</label>
+                    <select name="category" class="w-full border border-gray-300 rounded px-3 py-2">
+                        ${categories.map(category => `<option value="${category}">${category}</option>`).join("")}
+                    </select>
+                </div>
+                <div>
+                    <label class="block">Seri Numarası:</label>
+                    <input type="text" name="serial" class="w-full border border-gray-300 rounded px-3 py-2">
+                </div>`;
+            modalForm.onsubmit = event => addItem(event, room);
+            modal.classList.remove("hidden");
+        }
+
+        function addItem(event, room) {
+            event.preventDefault();
+            const formData = new FormData(modalForm);
+            inventoryData[room].push({
+                category: formData.get("category"),
+                serial: formData.get("serial"),
+            });
+            renderRoomInventory(room);
+            modal.classList.add("hidden");
+        }
+
+        function removeItem(room, index) {
+            inventoryData[room].splice(index, 1);
+            renderRoomInventory(room);
+        }
+
+        function renderAssignments() {
+            assignmentList.innerHTML = "";
+
+            const table = document.createElement("table");
+            table.classList.add("w-full", "table-auto", "border-collapse", "border", "border-gray-300", "mt-4");
+            table.innerHTML = `
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2">Kategori</th>
+                        <th class="border border-gray-300 px-4 py-2">Seri Numarası</th>
+                        <th class="border border-gray-300 px-4 py-2">Kime Zimmetli</th>
+                        <th class="border border-gray-300 px-4 py-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody id="assignmentTableBody">
+                    ${assignmentsData
+                        .map(
+                            (item, index) => `
+                                <tr>
+                                    <td class="border border-gray-300 px-4 py-2">${item.category}</td>
+                                    <td class="border border-gray-300 px-4 py-2">${item.serial}</td>
+                                    <td class="border border-gray-300 px-4 py-2">${item.assignedTo}</td>
+                                    <td class="border border-gray-300 px-4 py-2">
+                                        <button class="bg-red-500 text-white px-2 py-1 rounded" onclick="removeAssignment(${index})">Sil</button>
+                                    </td>
+                                </tr>`
+                        )
+                        .join("")}
+                </tbody>
+            `;
+            assignmentList.appendChild(table);
+        }
+
+        function showAddAssignmentModal() {
+            modalTitle.textContent = "Yeni Zimmet Ekle";
+            modalContent.innerHTML = `
+                <div>
+                    <label class="block">Kategori:</label>
+                    <select name="category" class="w-full border border-gray-300 rounded px-3 py-2">
+                        ${categories.map(category => `<option value="${category}">${category}</option>`).join("")}
+                    </select>
+                </div>
+                <div>
+                    <label class="block">Seri Numarası:</label>
+                    <input type="text" name="serial" class="w-full border border-gray-300 rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block">Kime Zimmetli:</label>
+                    <input type="text" name="assignedTo" class="w-full border border-gray-300 rounded px-3 py-2">
+                </div>`;
+            modalForm.onsubmit = addAssignment;
+            modal.classList.remove("hidden");
+        }
+
+        function addAssignment(event) {
+            event.preventDefault();
+            const formData = new FormData(modalForm);
+            assignmentsData.push({
+                category: formData.get("category"),
+                serial: formData.get("serial"),
+                assignedTo: formData.get("assignedTo"),
+            });
+            renderAssignments();
+            modal.classList.add("hidden");
+        }
+
+        function removeAssignment(index) {
+            assignmentsData.splice(index, 1);
+            renderAssignments();
+        }
+
+        function renderAllInventory() {
+            allInventoryList.innerHTML = "";
+            const table = document.createElement("table");
+            table.classList.add("w-full", "table-auto", "border-collapse", "border", "border-gray-300", "mt-4");
+            table.innerHTML = `
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 px-4 py-2">Kategori</th>
+                        <th class="border border-gray-300 px-4 py-2">Seri Numarası</th>
+                        <th class="border border-gray-300 px-4 py-2">Oda</th>
+                        <th class="border border-gray-300 px-4 py-2">Aksiyon</th>
+                    </tr>
+                </thead>
+                <tbody id="allInventoryTableBody">
+                    ${allInventoryData
+                        .map(
+                            (item, index) => `
+                                <tr>
+                                    <td class="border border-gray-300 px-4 py-2">${item.category}</td>
+                                    <td class="border border-gray-300 px-4 py-2">${item.serial}</td>
+                                    <td class="border border-gray-300 px-4 py-2">${item.room}</td>
+                                    <td class="border border-gray-300 px-4 py-2">
+                                        <button class="bg-red-500 text-white px-2 py-1 rounded" onclick="removeAllInventoryItem(${index})">Sil</button>
+                                    </td>
+                                </tr>`
+                        )
+                        .join("")}
+                </tbody>
+            `;
+            allInventoryList.appendChild(table);
+        }
+
+        function showAddAllInventoryModal() {
+            modalTitle.textContent = "Yeni Envanter Ekle";
+            modalContent.innerHTML = `
+                <div>
+                    <label class="block">Kategori:</label>
+                    <select name="category" class="w-full border border-gray-300 rounded px-3 py-2">
+                        ${categories.map(category => `<option value="${category}">${category}</option>`).join("")}
+                    </select>
+                </div>
+                <div>
+                    <label class="block">Seri Numarası:</label>
+                    <input type="text" name="serial" class="w-full border border-gray-300 rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block">Oda:</label>
+                    <input type="text" name="room" class="w-full border border-gray-300 rounded px-3 py-2">
+                </div>`;
+            modalForm.onsubmit = addAllInventoryItem;
+            modal.classList.remove("hidden");
+        }
+
+        function addAllInventoryItem(event) {
+            event.preventDefault();
+            const formData = new FormData(modalForm);
+            allInventoryData.push({
+                category: formData.get("category"),
+                serial: formData.get("serial"),
+                room: formData.get("room"),
+            });
+            renderAllInventory();
+            modal.classList.add("hidden");
+        }
+
+        function removeAllInventoryItem(index) {
+            allInventoryData.splice(index, 1);
+            renderAllInventory();
+        }
+
+        function exportToExcel() {
+            const workbook = XLSX.utils.book_new();
+
+            rooms.forEach(room => {
+                const data = inventoryData[room].map(item => ({
+                    Kategori: item.category,
+                    "Seri Numarası": item.serial
+                }));
+
+                const worksheet = XLSX.utils                .json_to_sheet(data);
+                XLSX.utils.book_append_sheet(workbook, worksheet, room);
+            });
+
+            const assignmentData = assignmentsData.map(item => ({
+                Kategori: item.category,
+                "Seri Numarası": item.serial,
+                "Kime Zimmetli": item.assignedTo,
+            }));
+
+            const assignmentSheet = XLSX.utils.json_to_sheet(assignmentData);
+            XLSX.utils.book_append_sheet(workbook, assignmentSheet, "Zimmetler");
+
+            const allInventoryDataSheet = XLSX.utils.json_to_sheet(allInventoryData.map(item => ({
+                Kategori: item.category,
+                "Seri Numarası": item.serial,
+                Oda: item.room,
+            })));
+            XLSX.utils.book_append_sheet(workbook, allInventoryDataSheet, "Tüm Envanter");
+
+            XLSX.writeFile(workbook, "Envanter_Yonetim_Sistemi.xlsx");
+        }
+
+        exportButton.addEventListener("click", exportToExcel);
+        cancelButton.addEventListener("click", () => modal.classList.add("hidden"));
+        addAssignmentButton.addEventListener("click", showAddAssignmentModal);
+        addAllInventoryButton.addEventListener("click", showAddAllInventoryModal);
+
+        document.querySelectorAll(".tab-button").forEach(button => {
+            button.addEventListener("click", () => {
+                document.querySelectorAll(".tab-button").forEach(btn => btn.classList.remove("active"));
+                document.querySelectorAll(".tab-content").forEach(content => content.classList.add("hidden"));
+
+                button.classList.add("active");
+                document.getElementById(button.dataset.tab + "Section").classList.remove("hidden");
+            });
+        });
+
+        renderRoomList();
+        renderAssignments();
+        renderAllInventory();
+    </script>
+</body>
+</html>
+
